@@ -1,122 +1,121 @@
-# Asset Failure Prediction - Project Documentation 
+# Asset-Failure Prediction
 
-## Training Pipeline
+Anticipating when industrial equipment will fail **before** it actually does saves money, increases safety and slashes downtime.  This repo is my end-to-end proof-of-concept that walks from raw sensor CSV ➜ trained ML model ➜ containerised API demo
 
-The goal of the training pipeline is to produce a production-ready PyTorch model that predicts machine failure for the *AI4I 2020 Predictive Maintenance* dataset.
+---
 
-### 1. Dataset
-The dataset is in the `ai4i2020.csv` file. It was downloaded from the UCI Machine Learning Repository:  https://doi.org/10.24432/C5HS5C
+## 1. Why it matters
+Keeping machines healthy is an important and often mission-critical goal across many industries incuding: **Energy**, **Agriculture**, **Aerospace**, and **Manufacturing/logistics**
 
+The common theme accross all these sectores is *continuous sensor data* + *high cost of failure*.  Predictive-maintenance ML models turn that data into early warnings so engineers can act proactively.
 
-### 2. Pre-processing
-| Step | Details |
-|------|---------|
-| **Column removal** | `UDI` and`Product ID` columns were dropped because they are identifiers with no predictive value.<br/> <br/> `TWF`, `HDF`, `PWF`, `OSF`, `RNF` columns were dropped because they are individual failure-type flags that are direct components of the target, creating a target-leakage risks. |
-| **Categorical encoding** | One-hot encoding was done on the `Type` column using `sklearn.preprocessing.OneHotEncoder`  |
-| **Numerical scaling** | Standardised (zero-mean, unit-variance) all numeric features via `StandardScaler`. |
-| **Pipeline** | `ColumnTransformer` + `Pipeline` wrap preprocessing steps for clean fit/transform and are persisted to `artifacts/preprocessing.pkl` |
-| **Splits** | Stratified 80 / 10 / 10 train / validation / test splits. Random seed = 42 for reproducibility. |
+---
 
-### 3. Model
-Simple feed-forward neural network architecture implemented in PyTorch:
-  * Input → 64 → 32 → 1 units.
-  * ReLU activation
-  * BatchNorm + Dropout regularisation.
-* BCEWithLogitsLoss (binary classification).
-* Adam Optimiser (default β parameters)
-* Configurable learning-rate  (default = 1e-3).
-* Best validation loss checkpoint is kept and restored at the end of training.
+## 2. What this repo delivers
+1. **Training pipeline**: `training-pipeline.py` cleans data, trains a PyTorch network, logs metrics and saves artefacts.
+2. **Inference service**: `serve.py` is a Flask API with a minimalistic web UI for manual testing.
+3. **Dockerfile**: one-command container build so it runs identically on my laptop and in the cloud.
 
-### 4. Metrics & Monitoring
-During each epoch the script prints:
-* Training Loss
-* Validation Loss
-* Validation Accuracy
-* Validation F1-score
-* Validation ROC-AUC
+---
 
-After training it evaluates on the test set and adds a Confusion Matrix to visualise FP/FN trade-offs.
-
-### 5. Artifacts
-**`artifacts/model.pt`** – Best-performing model weights.
-
-**`artifacts/preprocessing.pkl`** – Fitted `sklearn` preprocessing pipeline.
-
-Both artifacts are required for serving the model
-
-
-### 6. Usage
+## 3. Quick start (running it locally)
 ```bash
-# Install required packages
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# Train the model (default settings)
+# 2. Train (takes ~30s on CPU)
 python training-pipeline.py
 
+# 3. Serve
+python serve.py   # open http://localhost:8000
+```
+Model weights and the fitted preprocessing pipeline are saved to `artifacts/` after training so the API can load them on start-up.
+
+---
+
+## 4. Live demo
+A containerised build of this project is deployed on Google Cloud Run. You can try it out here:
+https://asset-failure-prediction-896255560923.europe-west1.run.app/
+
+*(The above link points to the public instance; feel free to raise an issue or email me if it's down).*  
+For local testing you can still `curl` or use the web form at `localhost:8000`.
+
+---
+
+## 5. Technical challenges
+
+
+### 5.1 Challenge: No access to proprietary maintenance logs
+Real industrial condition-monitoring data is almost always locked behind NDAs because it can reveal production volumes, proprietary processes or even safety incidents.
+
+**My solution**: I used the public (albeit synthetic) *AI4I 2020* dataset.  While the signals are simulated, the generators were calibrated on real bearings and motors so the failure modes and feature interactions remain realistic enough to prototype on.  Using a public dataset also means anyone can reproduce my results without special permissions.
+
+### 5.2 Challenge: Target leakage in the raw data
+During exploratory analysis I noticed five columns (`TWF`, `HDF`, `PWF`, `OSF`, `RNF`) that directly flag specific failure modes.  Leaving them in would let the model "cheat" because they are derived from the same ground-truth label I'm trying to predict.
+
+**My solution**: these columns are programmatically dropped inside an sklearn `ColumnTransformer`. 
+
+### 5.3 Challenge: Heterogeneous data types
+The raw data mixes a string-based `Type` column with numeric sensor readings.  Neural networks expect numerical tensors, so categorical text must be converted without exploding dimensionality.
+
+**My solution**: use a `OneHotEncoder` inside a `ColumnTransformer` to turn the three machine types (L, M, H) into three binary columns.  This keeps the information while preserving a dense mathematical representation suitable for linear algebra operations.
+
+### 5.4 Challenge: Feature scale imbalance
+Numeric sensors live on very different ranges (`Torque [Nm]` ≈ 0–100 vs `Rotational speed [rpm]` ≈ 0–3000).  Un-scaled inputs produce gradients proportional to their magnitude, so high-range features dominate the loss surface and drown out subtle ones. I.e., the model "pays too much attention" to Rotational speed and not enough to Torque when making predictions
+
+**My solution**: standard-scale every numeric column to zero-mean, unit-variance via the same `ColumnTransformer`.  The model now "sees" each feature on equal footing, which speeds up convergence and improves stability.
+
+### 5.5 Challenge: Training–serving skew
+It is easy to accidentally preprocess data one way in training and a *slightly* different way in production, leading to silent performance drops.
+
+**My solution**: the entire sklearn `Pipeline` (column removal → encoding → scaling) is serialised with `joblib` after training.  The Flask service deserialises the object at boot, so the exact same linear algebra (matrix multiplications, mean/variance, one-hot indices) is applied in production.  This eliminates drifting definitions of "what a feature means".
+
+### 5.6 Challenge: Reproducibility
+ML code that works only in the author's environment is a recurring headache.
+
+**My solution**: fixed random seeds across NumPy, Torch and sklearn; pinned package versions in `requirements.txt`; and wrapped the whole stack in a Docker image.  A GitHub **Continuous Integration (CI)** workflow rebuilds the image and runs unit tests on every push to the main branch
+
+### 5.7 Challenge: Low-latency inference
+A real-time dashboard needs sub-second responses
+
+**My solution**: artefacts are loaded **once at process start-up** (`serve.py` initialises `PREPROCESSOR, MODEL = load_artifacts()` before the Flask app handles traffic).  They live as global, read-only objects (~1 MB) for the lifetime of the worker. This reduces latency because the app doesn't need to re-load the artefacts for every request
+
+---
+
+## 6. What I learned 
+
+* **Leakage hides in plain sight**: catching the five leaking columns early saved me from celebrating inflated metrics.
+* **You don't always need a GPU**: a tiny CPU-friendly network reached a respectable 0.97 ROC-AUC.
+* **The last mile (serving) is more than half the work**: Figuring out how to serve the model from an API and then deploy the API took considerably longer than train the model in the first place
+* **Infrastructure skills**:  Docker, CI and Google Cloud Run once felt like intimidating DevOps tools. Now I can easily see myself using them again in future projects.
+---
+
+## 7. Limitations & roadmap 
+
+| Limitation | Why it's a problem | How I could address it in the future |
+|------------|---------------|----------------|
+| **Use of synthetic data** | Models tuned on synthetic signals may over-fit simulator quirks and under-perform on physical sensors. | Approach local manufacturing firms for anonymised logs; alternatively scrape publicly available vibration datasets and fine-tune. |
+| **Static web form** | The manual entry in my web demo doesn't showcase real-time monitoring and alerting. | Build a small Kafka → Flask bridge that streams sensor JSON and live-updates a dashboard. |
+| **No drift / health monitoring** | Data distributions shift and if left unmonitored the models performance can silently degrade over time. | Research methods for drift detection and health monitoring. Try to implement some of them |
+| **Minimal API error-handling** | Bad requests or spikes could crash the service. | Adopt Pydantic schemas, implement circuit-breakers & exponential back-off, etc... |
+
+
+---
+
+## 8. Repository map
+```
+├── ai4i2020.csv            # raw data
+├── training-pipeline.py    # training script
+├── serve.py                # Flask API + web UI
+├── artifacts/              # saved model & preprocessing
+├── templates/index.html    # minimal front-end
+└── Dockerfile              # container recipe
 ```
 
 ---
 
-## Serving the Model 
+## 9. References
+* S. Matzka, *Explainable Artificial Intelligence for Predictive Maintenance Applications*, 2020.
+* UCI Machine-Learning Repository, AI4I 2020 dataset.
 
-After training completes and the required artifacts are producted, a lightweight inference service can be spun up with Flask:
-
-```bash
-python serve.py
-```
-
-### API Endpoint
-
-`POST /predict` — expects a JSON payload with a `data` key containing a list of records. Each record must include the same feature columns used in training.
-
-Example request:
-
-```bash
-curl -X POST http://localhost:8000/predict \
-     -H "Content-Type: application/json" \
-     -d '{
-           "data": [
-             {
-               "Type": "L",
-               "Air temperature [K]": 298.1,
-               "Process temperature [K]": 308.5,
-               "Rotational speed [rpm]": 1550,
-               "Torque [Nm]": 40.5,
-               "Tool wear [min]": 120
-             }
-           ]
-         }'
-```
-
-Sample response:
-
-```json
-{
-  "predictions": [
-    {
-      "failure_probability": 0.1234,
-      "predicted_label": 0
-    }
-  ]
-}
-```
-
-## Interactive Web App  
-
-A minimal yet polished front-end is bundled into the same Flask service so you can explore the model without crafting raw JSON.
-
-### 1. Start the server
-```bash
-python serve.py  
-```
-
-### 2. Using the UI
-Open your browser at <http://localhost:8000>. You will see a minimalistic form.  
-
-Either fill in the six feature fields manually **or** click one of the _Load sample_ buttons:  
-  * **Non-failure sample** – typical operating conditions the model considers healthy.  
-  * **Failure sample** – stressed conditions that lead to a high failure probability.
-
-Hit **Predict** and the page will display the predicted probability and binary label in real time.
-
-
+---
