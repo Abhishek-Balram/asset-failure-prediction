@@ -86,7 +86,7 @@ A real-time dashboard needs sub-second responses
 
 * **Leakage hides in plain sight**: catching the five leaking columns early saved me from celebrating inflated metrics.
 * **You don't always need a GPU**: a tiny CPU-friendly network reached a respectable 0.97 ROC-AUC.
-* **The last mile (serving) is more than half the work**: Figuring out how to serve the model from an API and then deploy the API took considerably longer than train the model in the first place
+* **The last mile (serving) is more than half the work**: Figuring out how to serve the model from an API and then deploy the API took considerably longer than training the model in the first place
 * **Infrastructure skills**:  Docker, CI and Google Cloud Run once felt like intimidating DevOps tools. Now I can easily see myself using them again in future projects.
 ---
 
