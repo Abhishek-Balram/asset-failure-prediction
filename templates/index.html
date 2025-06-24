@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asset Failure Prediction</title>
+  <style>
+    :root { --primary:#007BFF; --secondary:#6c757d; }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, var(--primary) 0%, #6610f2 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .container {
+      background: #ffffff;
+      color: #333;
+      max-width: 600px;
+      width: 100%;
+      padding: 2rem 2.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      text-align: center;
+    }
+
+    h1 {
+      color: var(--primary);
+      margin-bottom: 0.25rem;
+    }
+
+    p.instructions { margin-bottom: 1.5rem; }
+
+    form > * { display: block; margin: 0.6rem auto; }
+    label { font-weight: 600; margin-bottom: 0.2rem; display: block; }
+    input, select {
+      padding: 0.45rem;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    button {
+      padding: 0.55rem 1.2rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: var(--secondary); color: #fff; margin-right: 0.5rem; }
+
+    #result { margin-top: 1.2rem; font-size: 1.1rem; }
+
+    .links { margin-top: 2rem; font-size: 0.9rem; }
+    .links a { color: var(--primary); text-decoration: none; margin: 0 0.25rem; }
+
+    @media (max-width: 600px) {
+      input, select { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Asset Failure Prediction</h1>
+    <p class="instructions">Fill in the operating conditions below (or load a sample) and hit <strong>Predict</strong>. The model will estimate the probability of machine failure.</p>
+    <form id="predict-form">
+      <label for="Type">Type:</label>
+      <select id="Type" name="Type" required>
+        <option value="L">L</option>
+        <option value="M">M</option>
+        <option value="H">H</option>
+      </select>
+
+      <label for="air_temp">Air temperature [K]:</label>
+      <input type="number" step="any" id="air_temp" name="Air temperature [K]" required>
+
+      <label for="process_temp">Process temperature [K]:</label>
+      <input type="number" step="any" id="process_temp" name="Process temperature [K]" required>
+
+      <label for="rot_speed">Rotational speed [rpm]:</label>
+      <input type="number" step="any" id="rot_speed" name="Rotational speed [rpm]" required>
+
+      <label for="torque">Torque [Nm]:</label>
+      <input type="number" step="any" id="torque" name="Torque [Nm]" required>
+
+      <label for="tool_wear">Tool wear [min]:</label>
+      <input type="number" step="any" id="tool_wear" name="Tool wear [min]" required>
+
+      <div style="margin-top:1rem;">
+        <button type="button" class="btn-secondary" onclick="loadSample('good')">Load non-failure sample</button>
+        <button type="button" class="btn-secondary" onclick="loadSample('bad')">Load failure sample</button>
+      </div>
+
+      <button type="submit" class="btn-primary">Predict</button>
+    </form>
+
+    <div id="result"></div>
+
+    <div class="links">
+      <span>View the project on <a href="#" target="_blank">GitHub</a> • Visit my <a href="#" target="_blank">Portfolio</a></span>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('predict-form').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const formData = new FormData(event.target);
+      const record = {};
+      formData.forEach((value, key) => {
+        if (key === 'Type') {
+          record[key] = value;
+        } else {
+          record[key] = parseFloat(value);
+        }
+      });
+
+      const resultEl = document.getElementById('result');
+      resultEl.textContent = 'Predicting...';
+      try {
+        const response = await fetch('/predict', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ data: [record] })
+        });
+        const respJson = await response.json();
+        if (response.ok) {
+          const pred = respJson.predictions[0];
+          resultEl.textContent = `Failure probability: ${pred.failure_probability.toFixed(4)} (label: ${pred.predicted_label})`;
+        } else {
+          resultEl.textContent = 'Error: ' + (respJson.error || 'Unknown error');
+        }
+      } catch (err) {
+        resultEl.textContent = 'Error: ' + err.message;
+      }
+    });
+
+    const samples = {
+      good: {"Type":"M","Air temperature [K]":298.1,"Process temperature [K]":308.6,"Rotational speed [rpm]":1551,"Torque [Nm]":42.8,"Tool wear [min]":0},
+      bad: {"Type":"L","Air temperature [K]":298.9,"Process temperature [K]":309.1,"Rotational speed [rpm]":2861,"Torque [Nm]":4.6,"Tool wear [min]":143}
+    };
+
+    function loadSample(kind) {
+      const record = samples[kind];
+      for (const key in record) {
+        const el = document.querySelector(`[name="${key}"]`);
+        if (!el) continue;
+        if (el.tagName === 'SELECT') {
+          el.value = record[key];
+        } else {
+          el.value = record[key];
+        }
+      }
+    }
+  </script>
+</body>
+</html> 
