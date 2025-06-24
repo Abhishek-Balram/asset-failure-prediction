@@ -55,7 +55,16 @@
     }
 
     .btn-primary { background: var(--primary); color: #fff; }
-    .btn-secondary { background: var(--secondary); color: #fff; margin-right: 0.5rem; }
+    .btn-secondary { background: var(--secondary); color: #fff; }
+
+    /* flex container for sample buttons */
+    .sample-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
 
     #result { margin-top: 1.2rem; font-size: 1.1rem; }
 
@@ -70,7 +79,7 @@
 <body>
   <div class="container">
     <h1>Asset Failure Prediction</h1>
-    <p class="instructions">Fill in the operating conditions below (or load a sample) and hit <strong>Predict</strong>. The model will estimate the probability of machine failure.</p>
+    <p class="instructions">This is a live demonstration of a machine learning model trained to predict industrial asset failure based on real-time sensor data. Fill in the operating conditions below (or load a sample) and hit <strong>Predict</strong>. The model will estimate the probability of machine failure.</p>
     <form id="predict-form">
       <label for="Type">Type:</label>
       <select id="Type" name="Type" required>
@@ -94,7 +103,7 @@
       <label for="tool_wear">Tool wear [min]:</label>
       <input type="number" step="any" id="tool_wear" name="Tool wear [min]" required>
 
-      <div style="margin-top:1rem;">
+      <div class="sample-buttons">
         <button type="button" class="btn-secondary" onclick="loadSample('good')">Load non-failure sample</button>
         <button type="button" class="btn-secondary" onclick="loadSample('bad')">Load failure sample</button>
       </div>
@@ -105,7 +114,7 @@
     <div id="result"></div>
 
     <div class="links">
-      <span>View the project on <a href="#" target="_blank">GitHub</a> • Visit my <a href="#" target="_blank">Portfolio</a></span>
+      <span>View the project on <a href="https://github.com/Abhishek-Balram/asset-failure-prediction" target="_blank">GitHub</a> • Visit my <a href="https://abhishekbalram.com" target="_blank">Portfolio</a></span>
     </div>
   </div>
 
