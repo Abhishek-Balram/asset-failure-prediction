@@ -1,18 +1,18 @@
 # Asset-Failure Prediction
 
-Anticipating when industrial equipment will fail **before** it actually does saves money, increases safety and slashes downtime.  This repo is my end-to-end proof-of-concept that walks from raw sensor CSV ➜ trained ML model ➜ containerised API demo
+Anticipating when industrial equipment will fail **before** it actually does saves money, increases safety and reduces downtime.  This repo is my end-to-end proof-of-concept that walks from raw sensor data ➜ trained ML model ➜ containerised API demo
 
 ---
 
 ## 1. Why it matters
 Keeping machines healthy is an important and often mission-critical goal across many industries incuding: **Energy**, **Agriculture**, **Aerospace**, and **Manufacturing/logistics**
 
-The common theme accross all these sectores is *continuous sensor data* + *high cost of failure*.  Predictive-maintenance ML models turn that data into early warnings so engineers can act proactively.
+The common theme accross all these sectors is *continuous sensor data* + *high cost of failure*.  Predictive-maintenance ML models turn that data into early warnings so engineers can act proactively.
 
 ---
 
 ## 2. What this repo delivers
-1. **Training pipeline**: `training-pipeline.py` cleans data, trains a PyTorch network, logs metrics and saves artefacts.
+1. **Training pipeline**: `training-pipeline.py` cleans data, trains a PyTorch model, logs metrics and saves artefacts.
 2. **Inference service**: `serve.py` is a Flask API with a minimalistic web UI for manual testing.
 3. **Dockerfile**: one-command container build so it runs identically on my laptop and in the cloud.
 
@@ -45,7 +45,7 @@ For local testing you can still `curl` or use the web form at `localhost:8000`.
 ## 5. Technical challenges
 
 
-### 5.1 Challenge: No access to proprietary maintenance logs
+### 5.1 Challenge: No access to proprietary data
 Real industrial condition-monitoring data is almost always locked behind NDAs because it can reveal production volumes, proprietary processes or even safety incidents.
 
 **My solution**: I used the public (albeit synthetic) *AI4I 2020* dataset.  While the signals are simulated, the generators were calibrated on real bearings and motors so the failure modes and feature interactions remain realistic enough to prototype on.  Using a public dataset also means anyone can reproduce my results without special permissions.
@@ -94,7 +94,7 @@ A real-time dashboard needs sub-second responses
 
 | Limitation | Why it's a problem | How I could address it in the future |
 |------------|---------------|----------------|
-| **Use of synthetic data** | Models tuned on synthetic signals may over-fit simulator quirks and under-perform on physical sensors. | Approach local manufacturing firms for anonymised logs; alternatively scrape publicly available vibration datasets and fine-tune. |
+| **Use of synthetic data** | Models tuned on synthetic signals may over-fit simulator quirks and under-perform on physical sensors. | Approach local firms for anonymised logs; alternatively scrape publicly available datasets and fine-tune. |
 | **Static web form** | The manual entry in my web demo doesn't showcase real-time monitoring and alerting. | Build a small Kafka → Flask bridge that streams sensor JSON and live-updates a dashboard. |
 | **No drift / health monitoring** | Data distributions shift and if left unmonitored the models performance can silently degrade over time. | Research methods for drift detection and health monitoring. Try to implement some of them |
 | **Minimal API error-handling** | Bad requests or spikes could crash the service. | Adopt Pydantic schemas, implement circuit-breakers & exponential back-off, etc... |
