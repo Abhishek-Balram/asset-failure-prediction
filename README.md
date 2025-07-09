@@ -35,7 +35,7 @@ Model weights and the fitted preprocessing pipeline are saved to `artifacts/` af
 
 ## 4. Live demo
 A containerised build of this project is deployed on Google Cloud Run. You can try it out here:
-https://asset-failure-prediction-896255560923.europe-west1.run.app/
+https://predictive-maintenance.abhishekbalram.com/
 
 *(The above link points to the public instance; feel free to raise an issue or email me if it's down).*  
 For local testing you can still `curl` or use the web form at `localhost:8000`.
