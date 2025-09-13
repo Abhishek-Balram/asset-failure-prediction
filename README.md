@@ -34,11 +34,12 @@ Model weights and the fitted preprocessing pipeline are saved to `artifacts/` af
 ---
 
 ## 4. Live demo
-A containerised build of this project is deployed on Google Cloud Run. You can try it out here:
-https://predictive-maintenance.abhishekbalram.com/
+See the public demo at https://predictive-maintenance.abhishekbalram.com/
 
-*(The above link points to the public instance; feel free to raise an issue or email me if it's down).*  
-For local testing you can still `curl` or use the web form at `localhost:8000`.
+
+Cold start note: To stay within the free tier I run the API in Google Cloud Run with `min instances = 0`. The first request after inactivity can take ~10–15s while the container cold‑starts, but any subsequent requests are fast. Setting `min instances = 1` would get rid of cold starts by always keeping at least one instance alive, but it would push costs above the free tier. 
+
+*(If the public instance is down, please raise an issue or email me: abhishek.balram@icloud.com)*
 
 ---
 
@@ -76,21 +77,18 @@ ML code that works only in the author's environment is a recurring headache.
 **My solution**: fixed random seeds across NumPy, Torch and sklearn; pinned package versions in `requirements.txt`; and wrapped the whole stack in a Docker image.  A GitHub **Continuous Integration (CI)** workflow rebuilds the image and runs unit tests on every push to the main branch
 
 ### 5.7 Challenge: Low-latency inference
-A real-time dashboard needs sub-second responses
+A real-time dashboard needs low-latency responses
 
 **My solution**: artefacts are loaded **once at process start-up** (`serve.py` initialises `PREPROCESSOR, MODEL = load_artifacts()` before the Flask app handles traffic).  They live as global, read-only objects (~1 MB) for the lifetime of the worker. This reduces latency because the app doesn't need to re-load the artefacts for every request
 
+### 5.8 Challenge: Cost vs. cold starts on Cloud Run
+When deploying to Google Cloud Run, I faced a dilema regarding the minimum number of instances (`min instances`) to use. Keeping `min instances = 1` avoids cold starts by keeping one instance alive at all times but comes with a monthly cost of ~20 NZD per month. `min instances = 0` fits within the free tier but the first request after idle can take ~10–15 seconds because it has to spin up a new instance.
+
+**My solution**: Since this is a proof-of-concept, I chose to prioritise keeping costs low and set `min instances = 0`. However I also split frontend and backend, allowing me to host the frontend as a separate static site with no cold start, and deploy only the API to Cloud Run with `min instances = 0`. The first API call may be slow after idle, but overall cost remains ~$0. 
+
 ---
 
-## 6. What I learned 
-
-* **Leakage hides in plain sight**: catching the five leaking columns early saved me from celebrating inflated metrics.
-* **You don't always need a GPU**: a tiny CPU-friendly network reached a respectable 0.97 ROC-AUC.
-* **The last mile (serving) is more than half the work**: Figuring out how to serve the model from an API and then deploy the API took considerably longer than training the model in the first place
-* **Infrastructure skills**:  Docker, CI and Google Cloud Run once felt like intimidating DevOps tools. Now I can easily see myself using them again in future projects.
----
-
-## 7. Limitations & roadmap 
+## 6. Limitations & roadmap 
 
 | Limitation | Why it's a problem | How I could address it in the future |
 |------------|---------------|----------------|
@@ -103,7 +101,7 @@ A real-time dashboard needs sub-second responses
 
 ---
 
-## 8. Repository map
+## 7. Repository map
 ```
 ├── ai4i2020.csv            # raw data
 ├── training-pipeline.py    # training script
@@ -115,7 +113,7 @@ A real-time dashboard needs sub-second responses
 
 ---
 
-## 9. References
+## 8. References
 * S. Matzka, *Explainable Artificial Intelligence for Predictive Maintenance Applications*, 2020.
 * UCI Machine-Learning Repository, AI4I 2020 dataset.
 
