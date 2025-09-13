@@ -6,6 +6,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
 
 import torch
 from torch import nn
@@ -90,6 +91,10 @@ def predict_proba(preprocessed_x: np.ndarray, model) -> np.ndarray:
 # Flask application
 # --------------------------------------------------
 app = Flask(__name__)
+# Enable CORS so the API can be called from a separately hosted frontend
+# For a demo setup we allow all origins. In production, restrict via env.
+_cors_origins = os.getenv("CORS_ORIGINS", "*")
+CORS(app, resources={r"/predict": {"origins": _cors_origins}, r"/health": {"origins": _cors_origins}})
 
 # Load artifacts once at startup
 PREPROCESSOR, MODEL = load_artifacts()
