@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Asset Failure Prediction</title>
+  <!-- Optional: set the API base URL when hosting the frontend separately.
+       Example: <meta name="api-base-url" content="https://YOUR-CLOUD-RUN-URL.a.run.app"> -->
+  <meta name="api-base-url" content="">
   <style>
     :root { --primary:#007BFF; --secondary:#6c757d; }
 
@@ -74,9 +77,41 @@
     @media (max-width: 600px) {
       input, select { width: 100%; }
     }
+
+    /* Loading overlay for backend warm-up */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 9999;
+      text-align: center;
+      padding: 1rem;
+    }
+    .overlay.show { display: flex; }
+    .loader {
+      width: 44px; height: 44px;
+      border: 4px solid #e0e0e0;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 0.75rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-note { max-width: 520px; }
   </style>
 </head>
 <body>
+  <div id="loading-overlay" class="overlay">
+    <div class="loader"></div>
+    <div class="loading-note">
+      Warming up the backend… This may take up to 10–15 seconds because the service uses Cloud Run with <strong>min instances = 0</strong> to keep hosting costs low.
+    </div>
+  </div>
   <div class="container">
     <h1>Asset Failure Prediction</h1>
     <p class="instructions">This is a live demonstration of a machine learning model trained to predict industrial asset failure based on real-time sensor data. Fill in the operating conditions below (or load a sample) and hit <strong>Predict</strong>. The model will estimate the probability of machine failure.</p>
@@ -108,7 +143,7 @@
         <button type="button" class="btn-secondary" onclick="loadSample('bad')">Load failure sample</button>
       </div>
 
-      <button type="submit" class="btn-primary">Predict</button>
+      <button id="predict-btn" type="submit" class="btn-primary">Predict</button>
     </form>
 
     <div id="result"></div>
@@ -119,6 +154,40 @@
   </div>
 
   <script>
+    const metaApi = document.querySelector('meta[name="api-base-url"]');
+    const API_BASE_URL = (window.API_BASE_URL || (metaApi && metaApi.content) || '').replace(/\/$/, '');
+
+    // Show loading overlay until /health responds OK (helps hide cold starts)
+    const overlayEl = document.getElementById('loading-overlay');
+    const predictBtn = document.getElementById('predict-btn');
+    const resultEl = document.getElementById('result');
+
+    async function waitForHealth({ timeoutMs = 60000, intervalMs = 1000 } = {}) {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        try {
+          const resp = await fetch(`${API_BASE_URL}/health`, { cache: 'no-store' });
+          if (resp.ok) return true;
+        } catch (e) {
+          // ignore and retry
+        }
+        await new Promise(r => setTimeout(r, intervalMs));
+      }
+      return false;
+    }
+
+    (async function init() {
+      // Block interaction until backend reports healthy (or timeout)
+      overlayEl.classList.add('show');
+      predictBtn.disabled = true;
+      const ok = await waitForHealth();
+      overlayEl.classList.remove('show');
+      predictBtn.disabled = false;
+      if (!ok) {
+        resultEl.textContent = 'The backend did not respond to /health yet. It may still be starting or the API URL is incorrect.';
+      }
+    })();
+
     document.getElementById('predict-form').addEventListener('submit', async function (event) {
       event.preventDefault();
       const formData = new FormData(event.target);
@@ -131,10 +200,9 @@
         }
       });
 
-      const resultEl = document.getElementById('result');
       resultEl.textContent = 'Predicting...';
       try {
-        const response = await fetch('/predict', {
+        const response = await fetch(`${API_BASE_URL}/predict`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
