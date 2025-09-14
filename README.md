@@ -1,6 +1,6 @@
 # Asset-Failure Prediction
 
-Anticipating when industrial equipment will fail **before** it actually does saves money, increases safety and reduces downtime.  This repo is my end-to-end proof-of-concept that walks from raw sensor data ➜ trained ML model ➜ containerised API demo
+Anticipating when industrial equipment will fail **before** it actually does saves money, increases safety and reduces downtime.  This repo is my end-to-end proof-of-concept that walks from raw sensor data --> trained ML model --> containerised API demo
 
 ---
 
@@ -37,7 +37,7 @@ Model weights and the fitted preprocessing pipeline are saved to `artifacts/` af
 See the public demo at https://predictive-maintenance.abhishekbalram.com/
 
 
-Cold start note: To stay within the free tier I run the API in Google Cloud Run with `min instances = 0`. The first request after inactivity can take ~10–15s while the container cold‑starts, but any subsequent requests are fast. Setting `min instances = 1` would get rid of cold starts by always keeping at least one instance alive, but it would push costs above the free tier. 
+Cold start note: To stay within the free tier I run the API in Google Cloud Run with `min instances = 0`. The first request after inactivity can take ~10–15s while the container cold‑starts, but any subsequent requests are fast. Setting `min instances = 1` would get rid of cold starts by always keeping at least one instance alive, but that would push costs above the free tier. 
 
 *(If the public instance is down, please raise an issue or email me: abhishek.balram@icloud.com)*
 
@@ -47,9 +47,9 @@ Cold start note: To stay within the free tier I run the API in Google Cloud Run 
 
 
 ### 5.1 Challenge: No access to proprietary data
-Real industrial condition-monitoring data is almost always locked behind NDAs because it can reveal production volumes, proprietary processes or even safety incidents.
+Real industrial condition-monitoring data is almost always locked behind NDAs 
 
-**My solution**: I used the public (albeit synthetic) *AI4I 2020* dataset.  While the signals are simulated, the generators were calibrated on real bearings and motors so the failure modes and feature interactions remain realistic enough to prototype on.  Using a public dataset also means anyone can reproduce my results without special permissions.
+**My solution**: I used the public (albeit synthetic) *AI4I 2020* dataset.  While the signals are simulated, the generators were calibrated on real bearings and motors so the failure modes and feature interactions remain realistic enough to prototype on.  Using a public dataset also means anyone can reproduce my results.
 
 ### 5.2 Challenge: Target leakage in the raw data
 During exploratory analysis I noticed five columns (`TWF`, `HDF`, `PWF`, `OSF`, `RNF`) that directly flag specific failure modes.  Leaving them in would let the model "cheat" because they are derived from the same ground-truth label I'm trying to predict.
@@ -72,19 +72,19 @@ It is easy to accidentally preprocess data one way in training and a *slightly* 
 **My solution**: the entire sklearn `Pipeline` (column removal → encoding → scaling) is serialised with `joblib` after training.  The Flask service deserialises the object at boot, so the exact same linear algebra (matrix multiplications, mean/variance, one-hot indices) is applied in production.  This eliminates drifting definitions of "what a feature means".
 
 ### 5.6 Challenge: Reproducibility
-ML code that works only in the author's environment is a recurring headache.
+Other people need to be able to reproduce and verify my results
 
-**My solution**: fixed random seeds across NumPy, Torch and sklearn; pinned package versions in `requirements.txt`; and wrapped the whole stack in a Docker image.  A GitHub **Continuous Integration (CI)** workflow rebuilds the image and runs unit tests on every push to the main branch
+**My solution**: fixed random seeds across NumPy, Torch and sklearn; pinned package versions in `requirements.txt`; and wrapped the whole stack in a Docker image.  A GitHub **Continuous Integration (CI)** workflow rebuilds the image on every push to the main branch
 
 ### 5.7 Challenge: Low-latency inference
-A real-time dashboard needs low-latency responses
+Real-time monitoring needs low-latency responses
 
 **My solution**: artefacts are loaded **once at process start-up** (`serve.py` initialises `PREPROCESSOR, MODEL = load_artifacts()` before the Flask app handles traffic).  They live as global, read-only objects (~1 MB) for the lifetime of the worker. This reduces latency because the app doesn't need to re-load the artefacts for every request
 
 ### 5.8 Challenge: Cost vs. cold starts on Cloud Run
 When deploying to Google Cloud Run, I faced a dilema regarding the minimum number of instances (`min instances`) to use. Keeping `min instances = 1` avoids cold starts by keeping one instance alive at all times but comes with a monthly cost of ~20 NZD per month. `min instances = 0` fits within the free tier but the first request after idle can take ~10–15 seconds because it has to spin up a new instance.
 
-**My solution**: Since this is a proof-of-concept, I chose to prioritise keeping costs low and set `min instances = 0`. However I also split frontend and backend, allowing me to host the frontend as a separate static site with no cold start, and deploy only the API to Cloud Run with `min instances = 0`. The first API call may be slow after idle, but overall cost remains ~$0. 
+**My solution**: Since this is a proof-of-concept, I chose to prioritise keeping costs low and set `min instances = 0`. However I also split the frontend and backend, allowing me to host the frontend as a separate static site with no cold start, and deploy only the API to Cloud Run with `min instances = 0`. The first API call may be slow after idle, but overall cost remains ~$0. 
 
 ---
 
@@ -94,7 +94,7 @@ When deploying to Google Cloud Run, I faced a dilema regarding the minimum numbe
 |------------|---------------|----------------|
 | **Use of synthetic data** | Models tuned on synthetic signals may over-fit simulator quirks and under-perform on physical sensors. | Approach local firms for anonymised logs; alternatively scrape publicly available datasets and fine-tune. |
 | **Limited to known failure modes** | The model is a supervised classifier that can only predict failures it has seen in the training data. It will likely miss entirely new or rare types of malfunctions, offering no warning for "unknown unknowns". | Complement this classifier with an unsupervised anomaly detection model (e.g., an Autoencoder or Isolation Forest). The anomaly model would learn the signature of normal operation and could flag any deviation, providing a much broader safety net and an earlier warning system for all types of operational issues, not just catastrophic failure.|
-| **Static web form** | The manual entry in my web demo doesn't showcase real-time monitoring and alerting. | Build a small Kafka → Flask bridge that streams sensor JSON and live-updates a dashboard. |
+| **Static web form** | The manual entry in my web demo doesn't showcase real-time monitoring and alerting. | Build a small Kafka --> Flask bridge that streams sensor JSON and live-updates a dashboard. |
 | **No drift / health monitoring** | Data distributions shift and if left unmonitored the models performance can silently degrade over time. | Research methods for drift detection and health monitoring. Try to implement some of them |
 | **Minimal API error-handling** | Bad requests or spikes could crash the service. | Adopt Pydantic schemas, implement circuit-breakers & exponential back-off, etc... |
 
